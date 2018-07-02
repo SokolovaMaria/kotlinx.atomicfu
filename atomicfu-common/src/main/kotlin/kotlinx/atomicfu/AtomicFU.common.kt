@@ -49,6 +49,17 @@ public expect fun atomic(initial: Int): AtomicInt
  */
 public expect fun atomic(initial: Long): AtomicLong
 
+/**
+ * Creates atomic [Boolean] with a given [initial] value.
+ *
+ * It can only be used in initialize of private read-only property, like this:
+ *
+ * ```
+ * private val f = atomic(initialBoolean)
+ * ```
+ */
+//public expect fun atomic(initial: Boolean): AtomicBoolean
+
 // ==================================== AtomicRef ====================================
 
 /**
@@ -119,6 +130,36 @@ public inline fun <T> AtomicRef<T>.updateAndGet(function: (T) -> T): T {
         if (compareAndSet(cur, upd)) return upd
     }
 }
+
+
+// ==================================== AtomicBoolean ====================================
+
+/**
+ * Atomic reference to a [Boolean] variable with volatile reads/writes via
+ * [value] property and various atomic read-modify-write operations
+ * like [compareAndSet] and others.
+ */
+//public expect class AtomicBoolean {
+//    /**
+//     * Reading/writing this property maps to read/write of volatile variable.
+//     */
+//    public var value: Boolean
+//
+//    /**
+//     * Maps to [AtomicReferenceFieldUpdater.lazySet].
+//     */
+//    public fun lazySet(value: Boolean)
+//
+//    /**
+//     * Maps to [AtomicReferenceFieldUpdater.compareAndSet].
+//     */
+//    public fun compareAndSet(expect: Boolean, update: Boolean): Boolean
+//
+//    /**
+//     * Maps to [AtomicReferenceFieldUpdater.getAndSet].
+//     */
+//    public fun getAndSet(value: Boolean): Boolean
+//}
 
 // ==================================== AtomicInt ====================================
 

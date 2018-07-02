@@ -56,6 +56,17 @@ public actual fun atomic(initial: Int): AtomicInt = AtomicInt(initial)
  */
 public actual fun atomic(initial: Long): AtomicLong = AtomicLong(initial)
 
+/**
+ * Creates atomic [Boolean] with a given [initial] value.
+ *
+ * It can only be used in initialize of private read-only property, like this:
+ *
+ * ```
+ * private val f = atomic(initialBoolean)
+ * ```
+ */
+//public actual fun atomic(initial: Boolean): AtomicBoolean = AtomicBoolean(initial)
+
 // ==================================== AtomicRef ====================================
 
 /**
