@@ -66,8 +66,8 @@ class ArithmeticTest {
 
     @Test
     fun testBoolean() {
-        val a = BooleanArithmetic()
-        check(a.x == 0)
+//        val a = BooleanArithmetic()
+//        check(a.x == 0)
         //a.lazySet(true)
         //check(a.x == 1)
         //check(a.getAndSet(true))
@@ -106,10 +106,10 @@ class IntArithmetic {
 //}
 
 class BooleanArithmetic {
-    private val _x = atomic(false)
-    val x get() = _x.value
-
-    fun lazySet(v: Boolean) = _x.lazySet(v)
+//    private val _x = atomic(false)
+//    val x get() = _x.value
+//
+//    fun lazySet(v: Boolean) = _x.lazySet(v)
 //    fun getAndSet(v: Boolean) = _x.getAndSet(v)
 //    fun compareAndSet(e: Boolean, u: Boolean) = _x.compareAndSet(e, u)
 }

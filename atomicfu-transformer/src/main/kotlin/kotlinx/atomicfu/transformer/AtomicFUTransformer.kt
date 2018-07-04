@@ -231,6 +231,12 @@ class AtomicFUTransformer(
     }
 
     private fun registerField(field: FieldId, fieldType: Type): FieldInfo {
+        if (fieldType.internalName in AFU_CLASSES) {
+            if (AFU_CLASSES[fieldType.internalName]!!.primitiveType == BOOLEAN_TYPE) {
+                //fieldType = INT_TYPE
+                //TODO change field type hear to INT
+            }
+        }
         val result = fields.getOrPut(field) { FieldInfo(field, fieldType) }
         if (result.fieldType != fieldType) abort("$field type mismatch between $fieldType and ${result.fieldType}")
         return result
@@ -287,7 +293,7 @@ class AtomicFUTransformer(
                 val field = FieldId(className, fieldName)
                 val fieldType = Type.getType(fi.desc)
                 val accessorMethod = MethodId(className, name, desc, accessToInvokeOpcode(access))
-//                info("$fieекфьыld accessor $name found")
+//                info("$field accessor $name found")
                 val fieldInfo = registerField(field, fieldType)
                 fieldInfo.accessors += accessorMethod
                 accessors[accessorMethod] = fieldInfo
@@ -317,7 +323,10 @@ class AtomicFUTransformer(
             val fieldType = Type.getType(desc)
             if (fieldType.sort == OBJECT && fieldType.internalName in AFU_CLASSES) {
                 val f = fields[FieldId(className, name)]!!
+                //TODO make full copy but change val field of primitiveType if Boolean
                 val protection = if (f.accessors.isEmpty()) ACC_PRIVATE else 0
+
+
                 val fv = super.visitField(protection or ACC_VOLATILE, f.name, f.primitiveType.descriptor, null, null)
                 if (vh) vhField(protection, f) else fuField(protection, f)
                 transformed = true
@@ -523,13 +532,13 @@ class AtomicFUTransformer(
 
         private fun fuOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
             val methodType = Type.getMethodType(iv.desc)
-//            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
-//            val args = methodType.argumentTypes
-//            if (boolean) {
-//                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
-//            }
+            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
+            val args = methodType.argumentTypes
+            if (boolean) {
+                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
+            }
             iv.owner = typeInfo.fuType.internalName
-            iv.desc = getMethodDescriptor(methodType.returnType, OBJECT_TYPE, *methodType.argumentTypes)
+            iv.desc = getMethodDescriptor(methodType.returnType, OBJECT_TYPE, *args)
         }
 
         private fun fixupLoadedAtomicVar(f: FieldInfo, ld: FieldInsnNode): AbstractInsnNode? {

@@ -53,9 +53,9 @@ class LockFreeLongCounterTest {
 
     @Test
     fun testBoolean() {
-//        val ab = InnerAtomicBoolean()
-//        ab.lazySet(true)
-//        check(ab.get() == 1)
+        val ab = InnerAtomicBoolean()
+        ab.lazySet(true)
+        check(ab.get() == 1)
     }
 }
 
