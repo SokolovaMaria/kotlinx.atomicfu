@@ -28,6 +28,7 @@ import org.objectweb.asm.tree.*
 import org.slf4j.*
 import java.io.*
 import java.net.*
+import kotlin.text.*
 
 class TypeInfo(val fuType: Type, val primitiveType: Type)
 
@@ -39,13 +40,14 @@ private const val ATOMIC = "atomic"
 private val AFU_CLASSES: Map<String, TypeInfo> = mapOf(
         "$AFU_PKG/AtomicInt" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.INT_TYPE),
         "$AFU_PKG/AtomicLong" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicLongFieldUpdater"), Type.LONG_TYPE),
-        "$AFU_PKG/AtomicRef" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicReferenceFieldUpdater"), OBJECT_TYPE)
-    )
+        "$AFU_PKG/AtomicRef" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicReferenceFieldUpdater"), OBJECT_TYPE),
+        "$AFU_PKG/AtomicBoolean" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.BOOLEAN_TYPE)
+)
 
 private val WRAPPER: Map<Type, String> = mapOf(
         Type.INT_TYPE to "java/lang/Integer",
         Type.LONG_TYPE to "java/lang/Long"
-    )
+)
 
 private val AFU_TYPES: Map<Type, TypeInfo> = AFU_CLASSES.mapKeys { Type.getObjectType(it.key) }
 
@@ -67,8 +69,9 @@ private const val AFU_CLS = "$AFU_PKG/AtomicFU"
 private val FACTORIES: Set<MethodId> = setOf(
         MethodId(AFU_CLS, ATOMIC, "(Ljava/lang/Object;)L$AFU_PKG/AtomicRef;", INVOKESTATIC),
         MethodId(AFU_CLS, ATOMIC, "(I)L$AFU_PKG/AtomicInt;", INVOKESTATIC),
-        MethodId(AFU_CLS, ATOMIC, "(J)L$AFU_PKG/AtomicLong;", INVOKESTATIC)
-    )
+        MethodId(AFU_CLS, ATOMIC, "(J)L$AFU_PKG/AtomicLong;", INVOKESTATIC),
+        MethodId(AFU_CLS, ATOMIC, "(Z)L$AFU_PKG/AtomicBoolean;", INVOKESTATIC)
+)
 
 private fun File.isClassFile() = toString().endsWith(".class")
 
@@ -101,10 +104,10 @@ class FieldInfo(fieldId: FieldId, val fieldType: Type) {
 }
 
 data class SourceInfo(
-    val method: MethodId,
-    val source: String?,
-    val i: AbstractInsnNode? = null,
-    val insnList: InsnList? = null
+        val method: MethodId,
+        val source: String?,
+        val i: AbstractInsnNode? = null,
+        val insnList: InsnList? = null
 ) {
     override fun toString(): String = buildString {
         source?.let { append("$it:") }
@@ -116,18 +119,18 @@ data class SourceInfo(
 enum class Variant { FU, VH, BOTH }
 
 class AtomicFUTransformer(
-    classpath: List<String>,
-    var inputDir: File,
-    var outputDir: File = inputDir,
-    var variant: Variant = Variant.FU
+        classpath: List<String>,
+        var inputDir: File,
+        var outputDir: File = inputDir,
+        var variant: Variant = Variant.FU
 ) {
     var verbose = false
 
     private var logger = LoggerFactory.getLogger(AtomicFUTransformer::class.java)
 
     private val classLoader = URLClassLoader(
-        (listOf(inputDir) + (classpath.map { File(it) } - outputDir))
-            .map {it.toURI().toURL() }.toTypedArray())
+            (listOf(inputDir) + (classpath.map { File(it) } - outputDir))
+                    .map {it.toURI().toURL() }.toTypedArray())
 
     private var hasErrors = false
     private var transformed = false
@@ -192,10 +195,10 @@ class AtomicFUTransformer(
     }
 
     private operator fun File.div(child: String) =
-        File(this, child)
+            File(this, child)
 
     private fun File.toOutputFile(): File =
-        outputDir / relativeTo(inputDir).toString()
+            outputDir / relativeTo(inputDir).toString()
 
     private fun analyzeFile(file: File) {
         ClassReader(file.inputStream()).accept(CollectorCV(), SKIP_FRAMES)
@@ -269,22 +272,22 @@ class AtomicFUTransformer(
     }
 
     private inner class AccessorCollectorMV(
-        private val className: String,
-        access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?
+            private val className: String,
+            access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?
     ) : MethodNode(ASM5, access, name, desc, signature, exceptions) {
         override fun visitEnd() {
             val insns = instructions.listUseful(4)
             if (insns.size == 3 &&
-                insns[0].isAload(0) &&
-                insns[1].isGetField(className) &&
-                insns[2].isAreturn())
+                    insns[0].isAload(0) &&
+                    insns[1].isGetField(className) &&
+                    insns[2].isAreturn())
             {
                 val fi = insns[1] as FieldInsnNode
                 val fieldName = fi.name
                 val field = FieldId(className, fieldName)
                 val fieldType = Type.getType(fi.desc)
                 val accessorMethod = MethodId(className, name, desc, accessToInvokeOpcode(access))
-                info("$field accessor $name found")
+//                info("$fieекфьыld accessor $name found")
                 val fieldInfo = registerField(field, fieldType)
                 fieldInfo.accessors += accessorMethod
                 accessors[accessorMethod] = fieldInfo
@@ -293,8 +296,8 @@ class AtomicFUTransformer(
     }
 
     private inner class TransformerCV(
-        cv: ClassVisitor,
-        private val vh: Boolean
+            cv: ClassVisitor,
+            private val vh: Boolean
     ) : CV(cv) {
         private var source: String? = null
         var sourceInfo: SourceInfo? = null
@@ -337,7 +340,7 @@ class AtomicFUTransformer(
                     getstatic(wrapper, "TYPE", CLASS_TYPE.descriptor)
                 }
                 invokevirtual(LOOKUP, "findVarHandle",
-                    getMethodDescriptor(VH_TYPE, CLASS_TYPE, STRING_TYPE, CLASS_TYPE), false)
+                        getMethodDescriptor(VH_TYPE, CLASS_TYPE, STRING_TYPE, CLASS_TYPE), false)
                 putstatic(className, f.fuName, VH_TYPE.descriptor)
             }
         }
@@ -406,10 +409,10 @@ class AtomicFUTransformer(
     }
 
     private inner class TransformerMV(
-        sourceInfo: SourceInfo,
-        access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?,
-        mv: MethodVisitor,
-        private val vh: Boolean
+            sourceInfo: SourceInfo,
+            access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?,
+            mv: MethodVisitor,
+            private val vh: Boolean
     ) : MethodNode(ASM5, access, name, desc, signature, exceptions) {
         init { this.mv = mv }
 
@@ -454,8 +457,8 @@ class AtomicFUTransformer(
             if (iv.name == "getValue" || iv.name == "setValue") {
                 instructions.remove(ld) // drop getstatic (we don't need field updater)
                 val j = FieldInsnNode(
-                    if (iv.name == "getValue") GETFIELD else PUTFIELD,
-                    f.owner, f.name, f.primitiveType.descriptor)
+                        if (iv.name == "getValue") GETFIELD else PUTFIELD,
+                        f.owner, f.name, f.primitiveType.descriptor)
                 instructions.set(iv, j) // replace invokevirtual with get/setfield
                 return j.next
             }
@@ -520,6 +523,11 @@ class AtomicFUTransformer(
 
         private fun fuOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
             val methodType = Type.getMethodType(iv.desc)
+//            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
+//            val args = methodType.argumentTypes
+//            if (boolean) {
+//                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
+//            }
             iv.owner = typeInfo.fuType.internalName
             iv.desc = getMethodDescriptor(methodType.returnType, OBJECT_TYPE, *methodType.argumentTypes)
         }
@@ -575,7 +583,7 @@ class AtomicFUTransformer(
                             if (name != "<init>") abort("factory $methodId is used outside of constructor")
                             val next = i.nextUseful
                             val fieldId = (next as? FieldInsnNode)?.checkPutField() ?:
-                                abort("factory $methodId invocation must be followed by putfield")
+                            abort("factory $methodId invocation must be followed by putfield")
                             instructions.remove(i)
                             transformed = true
                             val f = fields[fieldId]!!
@@ -586,7 +594,7 @@ class AtomicFUTransformer(
                             // replace INVOKESTATIC/VIRTUAL to accessor with GETSTATIC on var handle / field updater
                             val f = accessors[methodId]!!
                             val j = FieldInsnNode(GETSTATIC, f.owner, f.fuName,
-                                if (vh) VH_TYPE.descriptor else f.fuType.descriptor)
+                                    if (vh) VH_TYPE.descriptor else f.fuType.descriptor)
                             instructions.insert(i, j)
                             instructions.remove(i)
                             transformed = true

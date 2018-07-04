@@ -50,6 +50,13 @@ class LockFreeLongCounterTest {
         c.setM2()
         check(c.get() == -2L)
     }
+
+    @Test
+    fun testBoolean() {
+//        val ab = InnerAtomicBoolean()
+//        ab.lazySet(true)
+//        check(ab.get() == 1)
+    }
 }
 
 class LockFreeLongCounter {
@@ -73,4 +80,11 @@ class LockFreeLongCounter {
     private inner class Inner {
         fun getFromOuter(): Long = counter.value
     }
+}
+
+class InnerAtomicBoolean {
+    private val ab = atomic(false)
+    fun get(): Int = ab.value
+
+    fun lazySet(b: Boolean) = ab.lazySet(b)
 }

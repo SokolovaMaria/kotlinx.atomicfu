@@ -58,7 +58,7 @@ public expect fun atomic(initial: Long): AtomicLong
  * private val f = atomic(initialBoolean)
  * ```
  */
-//public expect fun atomic(initial: Boolean): AtomicBoolean
+public expect fun atomic(initial: Boolean): AtomicBoolean
 
 // ==================================== AtomicRef ====================================
 
@@ -139,27 +139,28 @@ public inline fun <T> AtomicRef<T>.updateAndGet(function: (T) -> T): T {
  * [value] property and various atomic read-modify-write operations
  * like [compareAndSet] and others.
  */
-//public expect class AtomicBoolean {
-//    /**
-//     * Reading/writing this property maps to read/write of volatile variable.
-//     */
-//    public var value: Boolean
-//
-//    /**
-//     * Maps to [AtomicReferenceFieldUpdater.lazySet].
-//     */
-//    public fun lazySet(value: Boolean)
-//
-//    /**
-//     * Maps to [AtomicReferenceFieldUpdater.compareAndSet].
-//     */
-//    public fun compareAndSet(expect: Boolean, update: Boolean): Boolean
-//
-//    /**
-//     * Maps to [AtomicReferenceFieldUpdater.getAndSet].
-//     */
-//    public fun getAndSet(value: Boolean): Boolean
-//}
+public expect class AtomicBoolean {
+    /**
+     * Reading/writing this property maps to read/write of volatile variable.
+     */
+    public var value: Int
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.lazySet].
+     */
+    public fun lazySet(value: Boolean)
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.compareAndSet].
+     */
+    public fun compareAndSet(expect: Boolean, update: Boolean): Boolean
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.getAndSet].
+     */
+    public fun getAndSet(value: Boolean): Boolean
+
+}
 
 // ==================================== AtomicInt ====================================
 

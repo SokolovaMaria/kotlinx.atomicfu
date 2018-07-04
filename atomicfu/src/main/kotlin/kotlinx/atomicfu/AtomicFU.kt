@@ -19,6 +19,7 @@
 
 package kotlinx.atomicfu
 
+import com.sun.org.apache.xpath.internal.operations.Bool
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater
@@ -65,7 +66,7 @@ public actual fun atomic(initial: Long): AtomicLong = AtomicLong(initial)
  * private val f = atomic(initialBoolean)
  * ```
  */
-//public actual fun atomic(initial: Boolean): AtomicBoolean = AtomicBoolean(initial)
+public actual fun atomic(initial: Boolean): AtomicBoolean = AtomicBoolean(initial)
 
 // ==================================== AtomicRef ====================================
 
@@ -120,6 +121,68 @@ public actual class AtomicRef<T> internal constructor(value: T) {
 
     private companion object {
         private val FU = AtomicReferenceFieldUpdater.newUpdater(AtomicRef::class.java, Any::class.java, "value")
+    }
+}
+
+
+// ==================================== AtomicBoolean ====================================
+
+/**
+ * Atomic reference to an [Int] variable with volatile reads/writes via
+ * [value] property and various atomic read-modify-write operations
+ * like [compareAndSet] and others.
+ */
+@Suppress("UNCHECKED_CAST")
+public actual class AtomicBoolean internal constructor(v: Boolean) {
+
+    /**
+     * Reading/writing this property maps to read/write of volatile variable.
+     */
+    @Volatile
+    public actual var value: Int = if (v) 1 else 0
+        set(value) {
+            interceptor.beforeUpdate(this)
+            field = value
+            interceptor.afterSet(this, value)
+        }
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.lazySet].
+     */
+    public actual fun lazySet(value: Boolean) {
+        interceptor.beforeUpdate(this)
+        val v = if (value) 1 else 0
+        FU.lazySet(this, v)
+        interceptor.afterSet(this, v)
+    }
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.compareAndSet].
+     */
+    public actual fun compareAndSet(expect: Boolean, update: Boolean): Boolean {
+        interceptor.beforeUpdate(this)
+        val e = if (expect) 1 else 0
+        val u = if (update) 1 else 0
+        val result = FU.compareAndSet(this, e, u)
+        if (result) interceptor.afterRMW(this, e, u)
+        return result
+    }
+
+    /**
+     * Maps to [AtomicIntegerFieldUpdater.getAndSet].
+     */
+    public actual fun getAndSet(value: Boolean): Boolean {
+        interceptor.beforeUpdate(this)
+        val v = if (value) 1 else 0
+        val oldValue = FU.getAndSet(this, v)
+        interceptor.afterRMW(this, oldValue, v)
+        return oldValue == 1
+    }
+
+    override fun toString(): String = value.toString()
+
+    private companion object {
+        private val FU = AtomicIntegerFieldUpdater.newUpdater(AtomicBoolean::class.java, "value")
     }
 }
 
