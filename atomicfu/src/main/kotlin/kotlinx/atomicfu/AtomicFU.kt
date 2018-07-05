@@ -128,7 +128,7 @@ public actual class AtomicRef<T> internal constructor(value: T) {
 // ==================================== AtomicBoolean ====================================
 
 /**
- * Atomic reference to an [Int] variable with volatile reads/writes via
+ * Atomic reference to an [Boolean] variable with volatile reads/writes via
  * [value] property and various atomic read-modify-write operations
  * like [compareAndSet] and others.
  */

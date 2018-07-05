@@ -87,4 +87,6 @@ class InnerAtomicBoolean {
     fun get(): Int = ab.value
 
     fun lazySet(b: Boolean) = ab.lazySet(b)
+    fun compareAndSet(e: Boolean, u: Boolean): Boolean = ab.compareAndSet(e, u)
+    fun getAndSet(n: Boolean): Boolean = ab.getAndSet(n)
 }

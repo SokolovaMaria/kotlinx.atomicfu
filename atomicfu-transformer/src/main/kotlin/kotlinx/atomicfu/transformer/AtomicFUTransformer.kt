@@ -41,7 +41,7 @@ private val AFU_CLASSES: Map<String, TypeInfo> = mapOf(
         "$AFU_PKG/AtomicInt" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.INT_TYPE),
         "$AFU_PKG/AtomicLong" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicLongFieldUpdater"), Type.LONG_TYPE),
         "$AFU_PKG/AtomicRef" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicReferenceFieldUpdater"), OBJECT_TYPE),
-        "$AFU_PKG/AtomicBoolean" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.BOOLEAN_TYPE)
+        "$AFU_PKG/AtomicBoolean" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.INT_TYPE)
 )
 
 private val WRAPPER: Map<Type, String> = mapOf(
@@ -130,7 +130,7 @@ class AtomicFUTransformer(
 
     private val classLoader = URLClassLoader(
             (listOf(inputDir) + (classpath.map { File(it) } - outputDir))
-                    .map {it.toURI().toURL() }.toTypedArray())
+                    .map { it.toURI().toURL() }.toTypedArray())
 
     private var hasErrors = false
     private var transformed = false
@@ -231,12 +231,6 @@ class AtomicFUTransformer(
     }
 
     private fun registerField(field: FieldId, fieldType: Type): FieldInfo {
-        if (fieldType.internalName in AFU_CLASSES) {
-            if (AFU_CLASSES[fieldType.internalName]!!.primitiveType == BOOLEAN_TYPE) {
-                //fieldType = INT_TYPE
-                //TODO change field type hear to INT
-            }
-        }
         val result = fields.getOrPut(field) { FieldInfo(field, fieldType) }
         if (result.fieldType != fieldType) abort("$field type mismatch between $fieldType and ${result.fieldType}")
         return result
@@ -286,8 +280,7 @@ class AtomicFUTransformer(
             if (insns.size == 3 &&
                     insns[0].isAload(0) &&
                     insns[1].isGetField(className) &&
-                    insns[2].isAreturn())
-            {
+                    insns[2].isAreturn()) {
                 val fi = insns[1] as FieldInsnNode
                 val fieldName = fi.name
                 val field = FieldId(className, fieldName)
@@ -323,10 +316,7 @@ class AtomicFUTransformer(
             val fieldType = Type.getType(desc)
             if (fieldType.sort == OBJECT && fieldType.internalName in AFU_CLASSES) {
                 val f = fields[FieldId(className, name)]!!
-                //TODO make full copy but change val field of primitiveType if Boolean
                 val protection = if (f.accessors.isEmpty()) ACC_PRIVATE else 0
-
-
                 val fv = super.visitField(protection or ACC_VOLATILE, f.name, f.primitiveType.descriptor, null, null)
                 if (vh) vhField(protection, f) else fuField(protection, f)
                 transformed = true
@@ -423,7 +413,9 @@ class AtomicFUTransformer(
             mv: MethodVisitor,
             private val vh: Boolean
     ) : MethodNode(ASM5, access, name, desc, signature, exceptions) {
-        init { this.mv = mv }
+        init {
+            this.mv = mv
+        }
 
         val sourceInfo = sourceInfo.copy(insnList = instructions)
 
@@ -462,7 +454,7 @@ class AtomicFUTransformer(
         // ld: instruction that loads atomic field (already changed to getstatic)
         // iv: invoke virtual on the loaded atomic field (to be fixed)
         private fun fixupInvokeVirtual(ld: FieldInsnNode, iv: MethodInsnNode, f: FieldInfo): AbstractInsnNode? {
-            val typeInfo = AFU_CLASSES[iv.owner]!!
+            var typeInfo = AFU_CLASSES[iv.owner]!!
             if (iv.name == "getValue" || iv.name == "setValue") {
                 instructions.remove(ld) // drop getstatic (we don't need field updater)
                 val j = FieldInsnNode(
@@ -472,6 +464,9 @@ class AtomicFUTransformer(
                 return j.next
             }
             // update method invocation
+            if (iv.owner == "$AFU_PKG/AtomicBoolean") {
+                typeInfo = TypeInfo(typeInfo.fuType, BOOLEAN_TYPE)
+            }
             if (vh) vhOperation(iv, typeInfo) else fuOperation(iv, typeInfo)
             // insert swap after field load
             val swap = InsnNode(SWAP)
@@ -534,11 +529,13 @@ class AtomicFUTransformer(
             val methodType = Type.getMethodType(iv.desc)
             val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
             val args = methodType.argumentTypes
+            var ret = methodType.returnType
             if (boolean) {
                 args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
+//                if (iv.name == "getAndSet") ret = INT_TYPE
             }
             iv.owner = typeInfo.fuType.internalName
-            iv.desc = getMethodDescriptor(methodType.returnType, OBJECT_TYPE, *args)
+            iv.desc = getMethodDescriptor(ret, OBJECT_TYPE, *args)
         }
 
         private fun fixupLoadedAtomicVar(f: FieldInfo, ld: FieldInsnNode): AbstractInsnNode? {
@@ -591,8 +588,8 @@ class AtomicFUTransformer(
                         methodId in FACTORIES -> {
                             if (name != "<init>") abort("factory $methodId is used outside of constructor")
                             val next = i.nextUseful
-                            val fieldId = (next as? FieldInsnNode)?.checkPutField() ?:
-                            abort("factory $methodId invocation must be followed by putfield")
+                            val fieldId = (next as? FieldInsnNode)?.checkPutField()
+                                    ?: abort("factory $methodId invocation must be followed by putfield")
                             instructions.remove(i)
                             transformed = true
                             val f = fields[fieldId]!!
