@@ -70,7 +70,7 @@ class ArithmeticTest {
         check(a.x == 0)
         a.lazySet(true)
         check(a.x == 1)
-        //check(a.getAndSet(true))
+        check(a.getAndSet(false))
         a.compareAndSet(false, true)
         check(a.x == 1)
     }
@@ -110,6 +110,6 @@ class BooleanArithmetic {
     val x get() = _x.value
 
     fun lazySet(v: Boolean) = _x.lazySet(v)
-    //fun getAndSet(v: Boolean) = _x.getAndSet(v)
+    fun getAndSet(v: Boolean) = _x.getAndSet(v)
     fun compareAndSet(e: Boolean, u: Boolean) = _x.compareAndSet(e, u)
 }

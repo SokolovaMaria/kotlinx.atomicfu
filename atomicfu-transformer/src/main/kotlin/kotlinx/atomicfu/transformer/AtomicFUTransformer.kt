@@ -532,7 +532,7 @@ class AtomicFUTransformer(
             var ret = methodType.returnType
             if (boolean) {
                 args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
-//                if (iv.name == "getAndSet") ret = INT_TYPE
+                if (iv.name == "getAndSet") ret = INT_TYPE
             }
             iv.owner = typeInfo.fuType.internalName
             iv.desc = getMethodDescriptor(ret, OBJECT_TYPE, *args)
