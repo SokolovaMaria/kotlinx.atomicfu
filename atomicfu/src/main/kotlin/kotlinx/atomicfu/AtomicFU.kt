@@ -19,7 +19,6 @@
 
 package kotlinx.atomicfu
 
-import com.sun.org.apache.xpath.internal.operations.Bool
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
 import java.util.concurrent.atomic.AtomicLongFieldUpdater
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater

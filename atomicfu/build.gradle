@@ -10,20 +10,29 @@ dependencies {
     testCompile "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
 }
 
-def classesPreAtomicFuDir = file("$buildDir/classes/kotlin/test")
-def classesPostAtomicFuDir = file("$buildDir/classes-post-atomicfu/test")
+def classesPreTransformDir = file("$buildDir/classes/kotlin/test")
+def classesPostTransformDir = file("$buildDir/classes-post-transform/test")
+
 
 task transformTestClasses(type: JavaExec, dependsOn: compileTestKotlin) {
     main = "kotlinx.atomicfu.transformer.AtomicFUTransformerKt"
-    args = [classesPreAtomicFuDir, classesPostAtomicFuDir]
+    if (JavaVersion.current().ordinal() >= JavaVersion.VERSION_1_9.ordinal()) {
+        args = [classesPreTransformDir, classesPostTransformDir, "BOTH"]
+    } else {
+        args = [classesPreTransformDir, classesPostTransformDir, "FU"]
+    }
     classpath = sourceSets.test.runtimeClasspath
-    inputs.dir(classesPreAtomicFuDir)
-    outputs.dir(classesPostAtomicFuDir)
+    inputs.dir(classesPreTransformDir)
+    outputs.dir(classesPostTransformDir)
 }
 
 task transformedTest(type: Test, dependsOn: transformTestClasses) {
-    classpath = files(configurations.testRuntime, classesPostAtomicFuDir)
+    classpath = files(configurations.testRuntime, "$buildDir/classes-post-transform/test/fu")
     exclude '**/*LFTest.*'
+}
+
+task testComlicated(type: Test, dependsOn: transformTestClasses) {
+    classpath = files(configurations.testRuntime, "$buildDir/classes-post-transform/test/vh")
 }
 
 tasks.withType(Test) {

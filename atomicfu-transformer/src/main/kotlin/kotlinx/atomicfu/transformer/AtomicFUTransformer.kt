@@ -175,11 +175,11 @@ class AtomicFUTransformer(
             inputDir.walk().filter { it.isFile }.forEach { file ->
                 val bytes = file.readBytes()
                 val outBytes = if (file.isClassFile()) transformFile(file, bytes, vh) else bytes
-                val outFile = file.toOutputFile()
-                outFile.mkdirsAndWrite(outBytes)
-                if (variant == Variant.BOTH && outBytes !== bytes) {
+                val fuFile = outputDir / "fu" / file.relativeTo(inputDir).toString()
+                fuFile.mkdirsAndWrite(outBytes)
+                if (variant == Variant.BOTH) {
                     val vhBytes = transformFile(file, bytes, true)
-                    val vhFile = outputDir / "META-INF" / "versions" / "9" / file.relativeTo(inputDir).toString()
+                    val vhFile = outputDir / "vh" / file.relativeTo(inputDir).toString()
                     vhFile.mkdirsAndWrite(vhBytes)
                 }
             }
@@ -389,7 +389,6 @@ class AtomicFUTransformer(
                 val newClinit = newClinit
                 if (newClinit == null) {
                     // dump just original clinit
-                    originalClinit!!.accept(cv)
                 } else {
                     // create dummy base code if needed
                     val originalClinit = originalClinit ?: newClinit().also {
@@ -476,9 +475,18 @@ class AtomicFUTransformer(
 
         private fun vhOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
             val methodType = Type.getMethodType(iv.desc)
+            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
+            val args = methodType.argumentTypes
+            var ret = methodType.returnType
+            if (boolean) {
+                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
+                if (iv.name == "getAndSet") ret = INT_TYPE
+            }
+
             iv.owner = VH_TYPE.internalName
-            val params = mutableListOf<Type>(OBJECT_TYPE, *methodType.argumentTypes)
+            val params = mutableListOf<Type>(OBJECT_TYPE, *args)
             val long = typeInfo.primitiveType == LONG_TYPE
+
             when (iv.name) {
                 "lazySet" -> iv.name = "setRelease"
                 "getAndIncrement" -> {
@@ -522,7 +530,7 @@ class AtomicFUTransformer(
                     })
                 }
             }
-            iv.desc = getMethodDescriptor(methodType.returnType, *params.toTypedArray())
+            iv.desc = getMethodDescriptor(ret, *params.toTypedArray())
         }
 
         private fun fuOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
@@ -648,12 +656,19 @@ class AtomicFUTransformer(
 }
 
 fun main(args: Array<String>) {
-    if (args.size !in 1..2) {
+    if (args.size !in 1..3) {
         println("Usage: AtomicFUTransformerKt <dir> [<output>]")
         return
     }
     val t = AtomicFUTransformer(emptyList(), File(args[0]))
     if (args.size > 1) t.outputDir = File(args[1])
+    if (args.size == 3) {
+        when (args[2]) {
+            "VH"   -> t.variant = Variant.VH
+            "FU"   -> t.variant = Variant.FU
+            "BOTH" -> t.variant = Variant.BOTH
+        }
+    }
     t.verbose = true
     t.transform()
 }
