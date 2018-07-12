@@ -162,6 +162,48 @@ public expect class AtomicBoolean {
 
 }
 
+/**
+ * Infinite loop that reads this atomic variable and performs the specified [action] on its value.
+ */
+public inline fun AtomicBoolean.loop(action: (Boolean) -> Unit): Nothing {
+    while (true) {
+        action(value == 1)
+    }
+}
+
+/**
+ * Updates variable atomically using the specified [function] of its value.
+ */
+public inline fun AtomicBoolean.update(function: (Boolean) -> Boolean) {
+    while (true) {
+        val cur = value == 1
+        val upd = function(cur)
+        if (compareAndSet(cur, upd)) return
+    }
+}
+
+/**
+ * Updates variable atomically using the specified [function] of its value and returns its old value.
+ */
+public inline fun AtomicBoolean.getAndUpdate(function: (Boolean) -> Boolean): Boolean {
+    while (true) {
+        val cur = value == 1
+        val upd = function(cur)
+        if (compareAndSet(cur, upd)) return cur
+    }
+}
+
+/**
+ * Updates variable atomically using the specified [function] of its value and returns its new value.
+ */
+public inline fun AtomicBoolean.updateAndGet(function: (Boolean) -> Boolean): Boolean {
+    while (true) {
+        val cur = value == 1
+        val upd = function(cur)
+        if (compareAndSet(cur, upd)) return upd
+    }
+}
+
 // ==================================== AtomicInt ====================================
 
 /**

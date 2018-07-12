@@ -177,7 +177,7 @@ class AtomicFUTransformer(
                 val outBytes = if (file.isClassFile()) transformFile(file, bytes, vh) else bytes
                 val outFile = file.toOutputFile()
                 outFile.mkdirsAndWrite(outBytes)
-                if (variant == Variant.BOTH && outBytes !== bytes) {
+                if ((variant == Variant.BOTH || variant == Variant.VH) && outBytes !== bytes) {
                     val vhBytes = transformFile(file, bytes, true)
                     val vhFile = outputDir / "META-INF" / "versions" / "9" / file.relativeTo(inputDir).toString()
                     vhFile.mkdirsAndWrite(vhBytes)

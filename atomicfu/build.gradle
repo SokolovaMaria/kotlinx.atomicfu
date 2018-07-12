@@ -10,46 +10,44 @@ dependencies {
     testCompile "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
 }
 
-//def classesDirs
-//def classesDirsCopy
 def classesPreAtomicFuDir = file("$buildDir/classes/kotlin/test")
-def classesPostAtomicFuDir = file("$buildDir/classes/kotlin/test-transformed")
+def classesPostTransformFU = file("$buildDir/classes/kotlin/postTransformedFU")
+def classesPostTransformVH = file("$buildDir/classes/kotlin/postTransformedVH")
+def classesPostTransformBOTH = file("$buildDir/classes/kotlin/postTransformedBOTH")
 
 task configureDirs(dependsOn: compileTestKotlin) {
-    println("CONFIGUREDIRS")
-    //println("1: " + sourceSets.test.output.classesDirs.toString())
-    //classesDirs - set of source paths of the primary class directory
-    //classesDirs = (sourceSets.test.output.classesDirs as ConfigurableFileCollection).from
-    //copy of classesDirs
-    //classesDirsCopy = files(classesDirs.toArray()).filter { it.exists() }
-    //println("1: classesDirsCopy " + classesDirsCopy.getAsFileTree().asPath)
-
-    println("1: sourceDirs before setFrom " + sourceSets.test.output.classesDirs.getAsFileTree().asPath)
-
-    //classesPostAtomicFuDir = file("$buildDir/classes/kotlin/test-transformed")
-    //set transformed classes directory as source path for classesDirs collection
-    (sourceSets.test.output.classesDirs as ConfigurableFileCollection).setFrom(classesPostAtomicFuDir)
-
-    //println("1: sourceDirs before transform: " + sourceSets.test.output.classesDirs.getAsFileTree().asPath)
+    (sourceSets.test.output.classesDirs as ConfigurableFileCollection).setFrom(classesPostTransformFU, classesPostTransformVH, classesPostTransformBOTH)
 }
 
-
-task transformTestClasses(type: JavaExec, dependsOn: compileTestKotlin) {
-    println("TRANSFORM TEST CLASSES")
+task transformFU(type: JavaExec, dependsOn: configureDirs) {
+    println("TRANSFORM FU")
     main = "kotlinx.atomicfu.transformer.AtomicFUTransformerKt"
-    if (JavaVersion.current().ordinal() >= JavaVersion.VERSION_1_9.ordinal()) {
-        args = [classesPreAtomicFuDir, classesPostAtomicFuDir, "BOTH"]
-    } else {
-        args = [classesPreAtomicFuDir, classesPostAtomicFuDir, "FU"]
-    }
+    args = [classesPreAtomicFuDir, classesPostTransformFU, "FU"]
     classpath = sourceSets.test.runtimeClasspath
     inputs.dir(classesPreAtomicFuDir)
-    outputs.dir(classesPostAtomicFuDir)
-
-    println("2: sourceDirs after transform " + sourceSets.test.output.classesDirs.asPath + "\n \n " + sourceSets.test.output.classesDirs.getAsFileTree().asPath)
+    outputs.dir(classesPostTransformFU)
 }
 
-task transformedTest(type: Test, dependsOn: transformTestClasses) {
+task transformVH(type: JavaExec, dependsOn: transformFU) {
+    println("TRANSFORM VH")
+    main = "kotlinx.atomicfu.transformer.AtomicFUTransformerKt"
+    args = [classesPreAtomicFuDir, classesPostTransformVH, "FU"]
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(classesPreAtomicFuDir)
+    outputs.dir(classesPostTransformVH)
+}
+
+task transformBOTH(type: JavaExec, dependsOn: transformVH) {
+    println("TRANSFORM BOTH")
+    main = "kotlinx.atomicfu.transformer.AtomicFUTransformerKt"
+    args = [classesPreAtomicFuDir, classesPostTransformBOTH, "BOTH"]
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.dir(classesPreAtomicFuDir)
+    outputs.dir(classesPostTransformBOTH)
+    //println("SOURCE DIR AFTER TRANSFORM " + sourceSets.test.output.classesDirs.asPath + "\n \n " + sourceSets.test.output.classesDirs.getAsFileTree().asPath)
+}
+
+task transformedTest(type: Test, dependsOn: transformBOTH) {
     classpath = files(configurations.testRuntime, sourceSets.test.output.classesDirs)
     exclude '**/*LFTest.*'
 }
