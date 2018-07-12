@@ -175,11 +175,11 @@ class AtomicFUTransformer(
             inputDir.walk().filter { it.isFile }.forEach { file ->
                 val bytes = file.readBytes()
                 val outBytes = if (file.isClassFile()) transformFile(file, bytes, vh) else bytes
-                val fuFile = outputDir / "fu" / file.relativeTo(inputDir).toString()
-                fuFile.mkdirsAndWrite(outBytes)
-                if (variant == Variant.BOTH) {
+                val outFile = file.toOutputFile()
+                outFile.mkdirsAndWrite(outBytes)
+                if (variant == Variant.BOTH && outBytes !== bytes) {
                     val vhBytes = transformFile(file, bytes, true)
-                    val vhFile = outputDir / "vh" / file.relativeTo(inputDir).toString()
+                    val vhFile = outputDir / "META-INF" / "versions" / "9" / file.relativeTo(inputDir).toString()
                     vhFile.mkdirsAndWrite(vhBytes)
                 }
             }
