@@ -30,7 +30,7 @@ import java.io.*
 import java.net.*
 import kotlin.text.*
 
-class TypeInfo(val fuType: Type, val primitiveType: Type)
+class TypeInfo(val fuType: Type, val originalType: Type, val transformedType: Type)
 
 private const val AFU_PKG = "kotlinx/atomicfu"
 private const val JUCA_PKG = "java/util/concurrent/atomic"
@@ -38,10 +38,10 @@ private const val JLI_PKG = "java/lang/invoke"
 private const val ATOMIC = "atomic"
 
 private val AFU_CLASSES: Map<String, TypeInfo> = mapOf(
-        "$AFU_PKG/AtomicInt" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.INT_TYPE),
-        "$AFU_PKG/AtomicLong" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicLongFieldUpdater"), Type.LONG_TYPE),
-        "$AFU_PKG/AtomicRef" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicReferenceFieldUpdater"), OBJECT_TYPE),
-        "$AFU_PKG/AtomicBoolean" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), Type.INT_TYPE)
+        "$AFU_PKG/AtomicInt" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), INT_TYPE, INT_TYPE),
+        "$AFU_PKG/AtomicLong" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicLongFieldUpdater"), LONG_TYPE, LONG_TYPE),
+        "$AFU_PKG/AtomicRef" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicReferenceFieldUpdater"), OBJECT_TYPE, OBJECT_TYPE),
+        "$AFU_PKG/AtomicBoolean" to TypeInfo(Type.getObjectType("$JUCA_PKG/AtomicIntegerFieldUpdater"), BOOLEAN_TYPE, INT_TYPE)
 )
 
 private val WRAPPER: Map<Type, String> = mapOf(
@@ -98,7 +98,7 @@ class FieldInfo(fieldId: FieldId, val fieldType: Type) {
     val fuName = fieldId.name + '$' + "FU"
     val typeInfo = AFU_CLASSES[fieldType.internalName]!!
     val fuType = typeInfo.fuType
-    val primitiveType = typeInfo.primitiveType
+    val primitiveType = typeInfo.transformedType
     val accessors = mutableListOf<MethodId>()
     override fun toString(): String = "${owner.prettyStr()}::$name"
 }
@@ -463,9 +463,6 @@ class AtomicFUTransformer(
                 return j.next
             }
             // update method invocation
-            if (iv.owner == "$AFU_PKG/AtomicBoolean") {
-                typeInfo = TypeInfo(typeInfo.fuType, BOOLEAN_TYPE)
-            }
             if (vh) vhOperation(iv, typeInfo) else fuOperation(iv, typeInfo)
             // insert swap after field load
             val swap = InsnNode(SWAP)
@@ -475,58 +472,57 @@ class AtomicFUTransformer(
 
         private fun vhOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
             val methodType = Type.getMethodType(iv.desc)
-            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
+            val trans = typeInfo.originalType != typeInfo.transformedType
             val args = methodType.argumentTypes
             var ret = methodType.returnType
-            if (boolean) {
-                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
-                if (iv.name == "getAndSet") ret = INT_TYPE
+            if (trans) {
+                args.forEachIndexed { i, type -> if (type == typeInfo.originalType) args[i] = typeInfo.transformedType }
+                if (iv.name == "getAndSet") ret = typeInfo.transformedType
             }
-
             iv.owner = VH_TYPE.internalName
             val params = mutableListOf<Type>(OBJECT_TYPE, *args)
-            val long = typeInfo.primitiveType == LONG_TYPE
+            val long = typeInfo.transformedType == LONG_TYPE
 
             when (iv.name) {
                 "lazySet" -> iv.name = "setRelease"
                 "getAndIncrement" -> {
                     instructions.insertBefore(iv, insns { if (long) lconst(1) else iconst(1) })
-                    params += typeInfo.primitiveType
+                    params += typeInfo.transformedType
                     iv.name = "getAndAdd"
                 }
                 "getAndDecrement" -> {
                     instructions.insertBefore(iv, insns { if (long) lconst(-1) else iconst(-1) })
-                    params += typeInfo.primitiveType
+                    params += typeInfo.transformedType
                     iv.name = "getAndAdd"
                 }
                 "addAndGet" -> {
                     bumpLocals(if (long) 2 else 1)
                     instructions.insertBefore(iv, insns {
                         if (long) dup2() else dup()
-                        store(tempLocal, typeInfo.primitiveType)
+                        store(tempLocal, typeInfo.transformedType)
                     })
                     iv.name = "getAndAdd"
                     instructions.insert(iv, insns {
-                        load(tempLocal, typeInfo.primitiveType)
-                        add(typeInfo.primitiveType)
+                        load(tempLocal, typeInfo.transformedType)
+                        add(typeInfo.transformedType)
                     })
                 }
                 "incrementAndGet" -> {
                     instructions.insertBefore(iv, insns { if (long) lconst(1) else iconst(1) })
-                    params += typeInfo.primitiveType
+                    params += typeInfo.transformedType
                     iv.name = "getAndAdd"
                     instructions.insert(iv, insns {
                         if (long) lconst(1) else iconst(1)
-                        add(typeInfo.primitiveType)
+                        add(typeInfo.transformedType)
                     })
                 }
                 "decrementAndGet" -> {
                     instructions.insertBefore(iv, insns { if (long) lconst(-1) else iconst(-1) })
-                    params += typeInfo.primitiveType
+                    params += typeInfo.transformedType
                     iv.name = "getAndAdd"
                     instructions.insert(iv, insns {
                         if (long) lconst(-1) else iconst(-1)
-                        add(typeInfo.primitiveType)
+                        add(typeInfo.transformedType)
                     })
                 }
             }
@@ -535,12 +531,12 @@ class AtomicFUTransformer(
 
         private fun fuOperation(iv: MethodInsnNode, typeInfo: TypeInfo) {
             val methodType = Type.getMethodType(iv.desc)
-            val boolean = typeInfo.primitiveType == BOOLEAN_TYPE
+            val trans = typeInfo.originalType != typeInfo.transformedType
             val args = methodType.argumentTypes
             var ret = methodType.returnType
-            if (boolean) {
-                args.forEachIndexed { i, type -> if (type == BOOLEAN_TYPE) args[i] = INT_TYPE }
-                if (iv.name == "getAndSet") ret = INT_TYPE
+            if (trans) {
+                args.forEachIndexed { i, type -> if (type == typeInfo.originalType) args[i] = typeInfo.transformedType }
+                if (iv.name == "getAndSet") ret = typeInfo.transformedType
             }
             iv.owner = typeInfo.fuType.internalName
             iv.desc = getMethodDescriptor(ret, OBJECT_TYPE, *args)
