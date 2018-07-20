@@ -26,17 +26,18 @@ public actual fun atomic(initial: Boolean): AtomicBoolean = AtomicBoolean(initia
 // ==================================== AtomicRef ====================================
 
 public actual class AtomicRef<T> internal constructor(value: T) {
+    @JsName("kotlinx\$atomicfu\$value")
     public actual var value: T = value
 
     public actual inline fun lazySet(value: T) { this.value = value }
 
-    public actual fun compareAndSet(expect: T, update: T): Boolean {
+    public actual inline fun compareAndSet(expect: T, update: T): Boolean {
         if (value !== expect) return false
         value = update
         return true
     }
 
-    public actual fun getAndSet(value: T): T {
+    public actual inline fun getAndSet(value: T): T {
         val oldValue = this.value
         this.value = value
         return oldValue
@@ -48,6 +49,7 @@ public actual class AtomicRef<T> internal constructor(value: T) {
 // ==================================== AtomicBoolean ====================================
 
 public actual class AtomicBoolean internal constructor(value: Boolean) {
+    @JsName("kotlinx\$atomicfu\$value")
     public actual var value: Boolean = value
 
     public actual inline fun lazySet(value: Boolean) {
@@ -60,7 +62,7 @@ public actual class AtomicBoolean internal constructor(value: Boolean) {
         return true
     }
 
-    public actual fun getAndSet(value: Boolean): Boolean {
+    public actual inline fun getAndSet(value: Boolean): Boolean {
         val oldValue = this.value
         this.value = value
         return oldValue
@@ -70,17 +72,18 @@ public actual class AtomicBoolean internal constructor(value: Boolean) {
 // ==================================== AtomicInt ====================================
 
 public actual class AtomicInt internal constructor(value: Int) {
+    @JsName("kotlinx\$atomicfu\$value")
     public actual var value: Int = value
 
     public actual inline fun lazySet(value: Int) { this.value = value }
 
-    public actual fun compareAndSet(expect: Int, update: Int): Boolean {
+    public actual inline fun compareAndSet(expect: Int, update: Int): Boolean {
         if (value != expect) return false
         value = update
         return true
     }
 
-    public actual fun getAndSet(value: Int): Int {
+    public actual inline fun getAndSet(value: Int): Int {
         val oldValue = this.value
         this.value = value
         return oldValue
@@ -90,20 +93,20 @@ public actual class AtomicInt internal constructor(value: Int) {
 
     public actual inline fun getAndDecrement(): Int = value--
 
-    public actual fun getAndAdd(delta: Int): Int {
+    public actual inline fun getAndAdd(delta: Int): Int {
         val oldValue = value
         value += delta
         return oldValue
     }
 
-    public actual fun addAndGet(delta: Int): Int {
+    public actual inline fun addAndGet(delta: Int): Int {
         value += delta
         return value
     }
 
     public actual inline fun incrementAndGet(): Int = ++value
 
-    public actual fun decrementAndGet(): Int = --value
+    public actual inline fun decrementAndGet(): Int = --value
 
     public actual inline operator fun plusAssign(delta: Int) { getAndAdd(delta) }
 
@@ -115,40 +118,41 @@ public actual class AtomicInt internal constructor(value: Int) {
 // ==================================== AtomicLong ====================================
 
 public actual class AtomicLong internal constructor(value: Long) {
+    @JsName("kotlinx\$atomicfu\$value")
     public actual var value: Long = value
 
     public actual inline fun lazySet(value: Long) { this.value = value }
 
-    public actual fun compareAndSet(expect: Long, update: Long): Boolean {
+    public actual inline fun compareAndSet(expect: Long, update: Long): Boolean {
         if (value != expect) return false
         value = update
         return true
     }
 
-    public actual fun getAndSet(value: Long): Long {
+    public actual inline fun getAndSet(value: Long): Long {
         val oldValue = this.value
         this.value = value
         return oldValue
     }
 
-    public actual fun getAndIncrement(): Long = value++
+    public actual inline fun getAndIncrement(): Long = value++
 
-    public actual fun getAndDecrement(): Long = value--
+    public actual inline fun getAndDecrement(): Long = value--
 
-    public actual fun getAndAdd(delta: Long): Long {
+    public actual inline fun getAndAdd(delta: Long): Long {
         val oldValue = value
         value += delta
         return oldValue
     }
 
-    public actual fun addAndGet(delta: Long): Long {
+    public actual inline fun addAndGet(delta: Long): Long {
         value += delta
         return value
     }
 
-    public actual fun incrementAndGet(): Long = ++value
+    public actual inline fun incrementAndGet(): Long = ++value
 
-    public actual fun decrementAndGet(): Long = --value
+    public actual inline fun decrementAndGet(): Long = --value
 
     public actual inline operator fun plusAssign(delta: Long) { getAndAdd(delta) }
 
