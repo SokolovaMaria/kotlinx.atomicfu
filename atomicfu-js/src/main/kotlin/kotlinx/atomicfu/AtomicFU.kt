@@ -31,13 +31,15 @@ public actual class AtomicRef<T> internal constructor(value: T) {
 
     public actual inline fun lazySet(value: T) { this.value = value }
 
-    public actual inline fun compareAndSet(expect: T, update: T): Boolean {
+    @JsName("compareAndSet\$atomicfu")
+    public actual fun compareAndSet(expect: T, update: T): Boolean {
         if (value !== expect) return false
         value = update
         return true
     }
 
-    public actual inline fun getAndSet(value: T): T {
+    @JsName("getAndSet\$atomicfu")
+    public actual fun getAndSet(value: T): T {
         val oldValue = this.value
         this.value = value
         return oldValue
@@ -56,13 +58,15 @@ public actual class AtomicBoolean internal constructor(value: Boolean) {
         this.value = value
     }
 
-    public actual inline fun compareAndSet(expect: Boolean, update: Boolean): Boolean {
+    @JsName("compareAndSet\$atomicfu")
+    public actual fun compareAndSet(expect: Boolean, update: Boolean): Boolean {
         if (value != expect) return false
         value = update
         return true
     }
 
-    public actual inline fun getAndSet(value: Boolean): Boolean {
+    @JsName("getAndSet\$atomicfu")
+    public actual fun getAndSet(value: Boolean): Boolean {
         val oldValue = this.value
         this.value = value
         return oldValue
@@ -77,36 +81,44 @@ public actual class AtomicInt internal constructor(value: Int) {
 
     public actual inline fun lazySet(value: Int) { this.value = value }
 
-    public actual inline fun compareAndSet(expect: Int, update: Int): Boolean {
+    @JsName("compareAndSet\$atomicfu")
+    public actual fun compareAndSet(expect: Int, update: Int): Boolean {
         if (value != expect) return false
         value = update
         return true
     }
 
-    public actual inline fun getAndSet(value: Int): Int {
+    @JsName("getAndSet\$atomicfu")
+    public actual fun getAndSet(value: Int): Int {
         val oldValue = this.value
         this.value = value
         return oldValue
     }
 
-    public actual inline fun getAndIncrement(): Int = value++
+    @JsName("getAndIncrement\$atomicfu")
+    public actual fun getAndIncrement(): Int = value++
 
-    public actual inline fun getAndDecrement(): Int = value--
+    @JsName("getAndDecrement\$atomicfu")
+    public actual fun getAndDecrement(): Int = value--
 
-    public actual inline fun getAndAdd(delta: Int): Int {
+    @JsName("getAndAdd\$atomicfu")
+    public actual fun getAndAdd(delta: Int): Int {
         val oldValue = value
         value += delta
         return oldValue
     }
 
-    public actual inline fun addAndGet(delta: Int): Int {
+    @JsName("addAndGet\$atomicfu")
+    public actual fun addAndGet(delta: Int): Int {
         value += delta
         return value
     }
 
-    public actual inline fun incrementAndGet(): Int = ++value
+    @JsName("incrementAndGet\$atomicfu")
+    public actual fun incrementAndGet(): Int = ++value
 
-    public actual inline fun decrementAndGet(): Int = --value
+    @JsName("decrementAndGet\$atomicfu")
+    public actual fun decrementAndGet(): Int = --value
 
     public actual inline operator fun plusAssign(delta: Int) { getAndAdd(delta) }
 
@@ -123,36 +135,45 @@ public actual class AtomicLong internal constructor(value: Long) {
 
     public actual inline fun lazySet(value: Long) { this.value = value }
 
-    public actual inline fun compareAndSet(expect: Long, update: Long): Boolean {
+    @JsName("compareAndSet\$atomicfu")
+    public actual fun compareAndSet(expect: Long, update: Long): Boolean {
         if (value != expect) return false
         value = update
         return true
     }
 
-    public actual inline fun getAndSet(value: Long): Long {
+    @JsName("getAndSet\$atomicfu")
+    public actual fun getAndSet(value: Long): Long {
         val oldValue = this.value
         this.value = value
         return oldValue
     }
 
-    public actual inline fun getAndIncrement(): Long = value++
+    @JsName("getAndIncrement\$atomicfu")
+    public actual fun getAndIncrement(): Long = value++
 
-    public actual inline fun getAndDecrement(): Long = value--
+    @JsName("getAndDecrement\$atomicfu")
+    public actual fun getAndDecrement(): Long = value--
 
-    public actual inline fun getAndAdd(delta: Long): Long {
+    @JsName("getAndAdd\$atomicfu")
+    public actual fun getAndAdd(delta: Long): Long {
         val oldValue = value
         value += delta
         return oldValue
     }
 
-    public actual inline fun addAndGet(delta: Long): Long {
+    @JsName("addAndGet\$atomicfu")
+    public actual fun addAndGet(delta: Long): Long {
         value += delta
         return value
     }
 
-    public actual inline fun incrementAndGet(): Long = ++value
 
-    public actual inline fun decrementAndGet(): Long = --value
+    @JsName("incrementAndGet\$atomicfu")
+    public actual fun incrementAndGet(): Long = ++value
+
+    @JsName("decrementAndGet\$atomicfu")
+    public actual fun decrementAndGet(): Long = --value
 
     public actual inline operator fun plusAssign(delta: Long) { getAndAdd(delta) }
 
