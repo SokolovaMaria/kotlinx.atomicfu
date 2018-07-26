@@ -9,6 +9,7 @@ dependencies {
     expectedBy project(":atomicfu-common")
     
     testCompile "org.jetbrains.kotlin:kotlin-test-js:$kotlin_version"
+    testCompile project(":atomicfu-transformer")
 }
 
 tasks.withType(compileKotlin2Js.getClass()) {
@@ -17,6 +18,17 @@ tasks.withType(compileKotlin2Js.getClass()) {
         sourceMap = true
         metaInfo = true
     }
+}
+
+def orifinalFile = "$buildDir/classes/kotlin/test/atomicfu-js_test.js"
+def transformedFile = "$buildDir/classes/kotlin/test/atomicfu-js_testTransformed.js"
+
+task transformJS (type: JavaExec, dependsOn: compileKotlin2Js) {
+    main = "kotlinx.atomicfu.transformer.AtomicFUTransformerJSKt"
+    args = [orifinalFile, transformedFile]
+    classpath = sourceSets.test.runtimeClasspath
+    inputs.file(orifinalFile)
+    outputs.file(transformedFile)
 }
 
 compileKotlin2Js {
@@ -35,3 +47,4 @@ repositories.whenObjectAdded {
         }
     }
 }
+

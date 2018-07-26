@@ -11,6 +11,7 @@ class AtomicFUTransformerJS(
     var inputDir: File,
     var outputDir: File
 ) {
+
     private val p = Parser(CompilerEnvirons())
 
     private operator fun File.div(child: String) =
@@ -38,14 +39,14 @@ class AtomicFUTransformerJS(
             outFilesTime = outFilesTime.coerceAtLeast(file.toOutputFile().lastModified())
         }
         //if (inpFilesTime > outFilesTime || outputDir == inputDir) {
-        // perform transformation
-        info("Transforming to $outputDir")
-        inputDir.walk().filter { it.isFile }.forEach { file ->
-            val bytes = file.readBytes()
-            val outBytes = transformFile(file, bytes)
-            val outFile = file.toOutputFile()
-            outFile.mkdirsAndWrite(outBytes)
-        }
+            // perform transformation
+            info("Transforming to $outputDir")
+            inputDir.walk().filter { it.isFile }.forEach { file ->
+                val bytes = file.readBytes()
+                val outBytes = transformFile(file, bytes)
+                val outFile = file.toOutputFile()
+                outFile.mkdirsAndWrite(outBytes)
+            }
 //        } else {
 //            info("Nothing to transform -- all classes are up to date")
 //        }
@@ -78,11 +79,11 @@ class AtomicFUTransformerJS(
                         passScope = true
                     }
                     val args = node.arguments
-                    node.atomicOperation(funcName.toSource(), field, args, passScope)
+                    node.inlineAtomicOperation(funcName.toSource(), field, args, passScope)
                 }
             }
 
-            //clear atomic constructors from classes fields
+            //remove atomic constructors from classes fields
             if (node is FunctionCall) {
                 val functionName = node.target.toSource()
                 //TODO determine atomic call
@@ -95,16 +96,17 @@ class AtomicFUTransformerJS(
                 }
             }
 
+            // remove value property call
             if (node.type == Token.GETPROP) {
                 if ((node as PropertyGet).property.toSource() == "kotlinx\$atomicfu\$value") {
-                    // this.field.value
+                    // A.a.value
                     if (node.target.type == Token.GETPROP) {
                         val clearField = node.target as PropertyGet
                         val targetNode = clearField.target
                         val clearProperety = clearField.property
                         node.setLeftAndRight(targetNode, clearProperety)
                     }
-                    // other cases -- poor
+                    // a.value -- poor
                     else if (node.parent is InfixExpression) {
                         val parent = node.parent as InfixExpression
                         if (parent.left == node) {
@@ -125,7 +127,6 @@ class AtomicFUTransformerJS(
 
     inner class RecieverResolver : NodeVisitor {
         var reciever: AstNode? = null
-
         override fun visit(node: AstNode?): Boolean {
             if (node is VariableInitializer) {
                 if (node.target.toSource() == "\$receiver") {
@@ -137,7 +138,12 @@ class AtomicFUTransformerJS(
         }
     }
 
-    private fun FunctionCall.atomicOperation(funcName: String, field: AstNode, args: List<AstNode>, passScope: Boolean) {
+    private fun FunctionCall.inlineAtomicOperation(
+        funcName: String,
+        field: AstNode,
+        args: List<AstNode>,
+        passScope: Boolean
+    ) {
         var code: String? = null
         val f = if (passScope) ("scope" + '.' + (field as PropertyGet).property.toSource()) else field.toSource()
         when (funcName) {
@@ -148,7 +154,8 @@ class AtomicFUTransformerJS(
             "compareAndSet\$atomicfu" -> {
                 val expected = args[0].toSource()
                 val updated = args[1].toSource()
-                code = "(function(scope) {return $f === $expected ? function() { $f = $updated; return true }() : false})"
+                code =
+                    "(function(scope) {return $f === $expected ? function() { $f = $updated; return true }() : false})"
             }
             "getAndIncrement\$atomicfu" -> {
                 code = "(function(scope) {return $f++;})"
@@ -183,27 +190,24 @@ class AtomicFUTransformerJS(
 
     private fun FunctionCall.getNode(code: String) {
         val p = Parser(CompilerEnvirons())
-        val p1 = Parser(CompilerEnvirons())
         val node = p.parse(code, null, 0)
         if (node.firstChild != null) {
             if (node.firstChild is ExpressionStatement) {
                 this.target = (node.firstChild as ExpressionStatement).expression
-                val thisNode = p1.parse("this", null, 0)
+                val thisNode = Parser(CompilerEnvirons()).parse("this", null, 0)
                 this.arguments = listOf((thisNode.firstChild as ExpressionStatement).expression)
             }
         }
     }
 }
 
-    fun main(args: Array<String>) {
-//    if (args.size !in 1..2) {
-//        println("Usage: AtomicFUTransformerKt <dir> [<output>]")
-//        return
-//    }
-        val t = AtomicFUTransformerJS(
-            File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_test.js"),
-            File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_testTransformed.js")
-        )
-        //if (args.size > 1) t.outputDir = File(args[1])
-        t.transform()
+fun main(args: Array<String>) {
+    if (args.size !in 1..2) {
+        println("Usage: AtomicFUTransformerKt <dir> [<output>]")
+        return
     }
+    val output = File(args[1])
+    output.createNewFile()
+    val t = AtomicFUTransformerJS( File(args[0]), output)
+    t.transform()
+}
