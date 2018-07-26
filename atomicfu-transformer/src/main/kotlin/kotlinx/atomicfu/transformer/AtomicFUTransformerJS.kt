@@ -61,19 +61,24 @@ class AtomicFUTransformerJS(
     inner class TransformVisitor : NodeVisitor {
 
         override fun visit(node: AstNode): Boolean {
-
-
             // inline atomic operations
             if (node is FunctionCall) {
                 if (node.target is PropertyGet) {
-                    val funcName = (node.target as PropertyGet).property.toSource()
-                    val field = (node.target as PropertyGet).target.toSource()
+                    val funcName = (node.target as PropertyGet).property
+                    var field = (node.target as PropertyGet).target
+                    if (field.toSource() == "\$receiver") {
+                        val rr = RecieverResolver()
+                        node.enclosingFunction.visit(rr)
+                        if (rr.reciever != null) {
+                            field = rr.reciever
+                        }
+                    }
+                    var passScope = false
+                    if (field is PropertyGet && field.target.type == Token.THIS) {
+                        passScope = true
+                    }
                     val args = node.arguments
-                    val toFuncNode = node.enclosingFunction.body.firstChild !is ReturnStatement
-                    node.atomicOperation(funcName, field, args, toFuncNode)
-//                    if (atomicOp != null) {
-//                        node.enclosingFunction.body = atomicOp
-//                    }
+                    node.atomicOperation(funcName.toSource(), field, args, passScope)
                 }
             }
 
@@ -118,94 +123,87 @@ class AtomicFUTransformerJS(
         }
     }
 
-    private fun FunctionCall.atomicOperation(
-        funcName: String,
-        field: String,
-        args: List<AstNode>,
-        toFuncNode: Boolean
-    ) {
+    inner class RecieverResolver : NodeVisitor {
+        var reciever: AstNode? = null
+
+        override fun visit(node: AstNode?): Boolean {
+            if (node is VariableInitializer) {
+                if (node.target.toSource() == "\$receiver") {
+                    reciever = node.initializer
+                    return false
+                }
+            }
+            return true
+        }
+    }
+
+    private fun FunctionCall.atomicOperation(funcName: String, field: AstNode, args: List<AstNode>, passScope: Boolean) {
         var code: String? = null
+        val f = if (passScope) ("scope" + '.' + (field as PropertyGet).property.toSource()) else field.toSource()
         when (funcName) {
             "getAndSet\$atomicfu" -> {
                 val arg = args[0].toSource()
-                code = "function() {\n" +
-                    "var oldValue = $field;\n" +
-                    "$field = $arg;\n" +
-                    "return oldValue;}"
+                code = "(function(scope) {var oldValue = $f; $f = $arg; return oldValue;})"
             }
             "compareAndSet\$atomicfu" -> {
                 val expected = args[0].toSource()
                 val updated = args[1].toSource()
-                code = "function() {\n" +
-                    "if ($field != $expected) return false;\n" +
-                    "$field = $updated;\n" +
-                    "return true;}"
+                code = "(function(scope) {return $f === $expected ? function() { $f = $updated; return true }() : false})"
             }
             "getAndIncrement\$atomicfu" -> {
-                code = "function() {return $field++;}"
+                code = "(function(scope) {return $f++;})"
             }
 
             "getAndDecrement\$atomicfu" -> {
-                code = "function() {return $field--;}"
+                code = "(function(scope) {return $f--;})"
             }
 
             "getAndAdd\$atomicfu" -> {
                 val arg = args[0].toSource()
-                code = "function() {var oldValue = $field; $field += $arg; return oldValue;}"
+                code = "(function(scope) {var oldValue = $f; $f += $arg; return oldValue;})"
             }
 
             "addAndGet\$atomicfu" -> {
                 val arg = args[0].toSource()
-                code = "function() {$field += $arg; return $field;}"
+                code = "(function(scope) {$f += $arg; return $f;})"
             }
 
             "incrementAndGet\$atomicfu" -> {
-                code = "function() {return ++$field;}"
+                code = "(function(scope) {return ++$f;})"
             }
 
             "decrementAndGet\$atomicfu" -> {
-                code = "function() {return --$field;}"
+                code = "(function(scope) {return --$f;})"
             }
         }
         if (code != null) {
-            this.getNode(code, toFuncNode)
+            this.getNode(code)
         }
     }
 
-    private fun FunctionCall.getNode(code: String, toFuncNode: Boolean) {
+    private fun FunctionCall.getNode(code: String) {
         val p = Parser(CompilerEnvirons())
+        val p1 = Parser(CompilerEnvirons())
         val node = p.parse(code, null, 0)
-        var newBody: AstNode = node
         if (node.firstChild != null) {
-            if (node.firstChild is FunctionNode) {
-                if (!toFuncNode) this.enclosingFunction.body = (node.firstChild as FunctionNode).body
-                else {
-//                    println("MY NODE: " + node.toSource())
-//                    (node.firstChild as FunctionNode).setIsExpressionClosure(true)
-//                    this.target = (node.firstChild as FunctionNode).body
-//                    (node.firstChild as FunctionNode)
-                    //this.arguments = (node.firstChild as FunctionNode).params
-                }
-            } else if (node.firstChild is ReturnStatement) {
-                if (!toFuncNode) this.enclosingFunction.body = (node.firstChild as ReturnStatement).returnValue
-//                else {
-//                    this.target = node
-//                    this.arguments = null
-//                }
+            if (node.firstChild is ExpressionStatement) {
+                this.target = (node.firstChild as ExpressionStatement).expression
+                val thisNode = p1.parse("this", null, 0)
+                this.arguments = listOf((thisNode.firstChild as ExpressionStatement).expression)
             }
         }
     }
 }
 
-fun main(args: Array<String>) {
+    fun main(args: Array<String>) {
 //    if (args.size !in 1..2) {
 //        println("Usage: AtomicFUTransformerKt <dir> [<output>]")
 //        return
 //    }
-    val t = AtomicFUTransformerJS(
-        File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_test.js"),
-        File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_testTransformed.js")
-    )
-    //if (args.size > 1) t.outputDir = File(args[1])
-    t.transform()
-}
+        val t = AtomicFUTransformerJS(
+            File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_test.js"),
+            File("/home/jetbrains/kotlinx.atomicfu/atomicfu-js/build/classes/kotlin/test/atomicfu-js_testTransformed.js")
+        )
+        //if (args.size > 1) t.outputDir = File(args[1])
+        t.transform()
+    }
