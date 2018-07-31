@@ -13,6 +13,7 @@ class AtomicFUTransformerJS(
 ) {
 
     private val p = Parser(CompilerEnvirons())
+    private val atomicConstructors = mutableSetOf<String>()
 
     private operator fun File.div(child: String) =
         File(this, child)
@@ -32,13 +33,7 @@ class AtomicFUTransformerJS(
     }
 
     fun transform() {
-        var inpFilesTime = 0L
-        var outFilesTime = 0L
-        inputDir.walk().filter { it.isFile }.forEach { file ->
-            inpFilesTime = inpFilesTime.coerceAtLeast(file.lastModified())
-            outFilesTime = outFilesTime.coerceAtLeast(file.toOutputFile().lastModified())
-        }
-        //if (inpFilesTime > outFilesTime || outputDir == inputDir) {
+        //if (outputDir == inputDir) {
             // perform transformation
             info("Transforming to $outputDir")
             inputDir.walk().filter { it.isFile }.forEach { file ->
@@ -55,8 +50,24 @@ class AtomicFUTransformerJS(
     private fun transformFile(file: File, bytes: ByteArray): ByteArray {
         val root = p.parse(FileReader(file), null, 0)
         val tv = TransformVisitor()
+        val acf = AtomicConstructorDetector()
+        root.visit(acf)
         root.visit(tv)
         return root.toSource().toByteArray()
+    }
+
+    inner class AtomicConstructorDetector : NodeVisitor {
+
+        override fun visit(node: AstNode?): Boolean {
+            if (node is VariableInitializer && node.initializer is PropertyGet) {
+                val regex = Regex("""atomic\$(ref|int|long|boolean)\$""")
+                if (( node.initializer as PropertyGet).property.toSource().matches(regex) ) {
+                    atomicConstructors.add(node.target.toSource())
+                }
+                return false
+            }
+            return true
+        }
     }
 
     inner class TransformVisitor : NodeVisitor {
@@ -68,10 +79,10 @@ class AtomicFUTransformerJS(
                     val funcName = (node.target as PropertyGet).property
                     var field = (node.target as PropertyGet).target
                     if (field.toSource() == "\$receiver") {
-                        val rr = RecieverResolver()
+                        val rr = ReceiverResolver()
                         node.enclosingFunction.visit(rr)
-                        if (rr.reciever != null) {
-                            field = rr.reciever
+                        if (rr.receiver != null) {
+                            field = rr.receiver
                         }
                     }
                     var passScope = false
@@ -79,15 +90,15 @@ class AtomicFUTransformerJS(
                         passScope = true
                     }
                     val args = node.arguments
-                    node.inlineAtomicOperation(funcName.toSource(), field, args, passScope)
+                    val inlined = node.inlineAtomicOperation(funcName.toSource(), field, args, passScope)
+                    return !inlined
                 }
             }
 
             //remove atomic constructors from classes fields
             if (node is FunctionCall) {
                 val functionName = node.target.toSource()
-                //TODO determine atomic call
-                if (functionName.length > 5 && functionName.substring(0, 6) == "atomic") {
+                if (atomicConstructors.contains(functionName)) {
                     if (node.parent is Assignment) {
                         val valueNode = node.arguments[0]
                         (node.parent as InfixExpression).setRight(valueNode)
@@ -106,18 +117,14 @@ class AtomicFUTransformerJS(
                         val clearProperety = clearField.property
                         node.setLeftAndRight(targetNode, clearProperety)
                     }
-                    // a.value -- poor
-                    else if (node.parent is InfixExpression) {
-                        val parent = node.parent as InfixExpression
-                        if (parent.left == node) {
-                            parent.left = node.target
-                        } else if (parent.right == node) {
-                            parent.right = node.target
+                    // other cases with $receiver.kotlinx$atomicfu$value in inline functions
+                    else if (node.target.toSource() == "\$receiver") {
+                        val rr = ReceiverResolver()
+                        node.enclosingFunction.visit(rr)
+                        if (rr.receiver != null) {
+                            val field = rr.receiver as PropertyGet
+                            node.setLeftAndRight(field.target, field.property)
                         }
-                    } else if (node.parent is ReturnStatement) {
-                        (node.parent as ReturnStatement).returnValue = node.target
-                    } else if (node.parent is VariableInitializer) {
-                        (node.parent as VariableInitializer).initializer = node.target
                     }
                 }
             }
@@ -125,12 +132,13 @@ class AtomicFUTransformerJS(
         }
     }
 
-    inner class RecieverResolver : NodeVisitor {
-        var reciever: AstNode? = null
+    // receiver data flow
+    inner class ReceiverResolver : NodeVisitor {
+        var receiver: AstNode? = null
         override fun visit(node: AstNode?): Boolean {
             if (node is VariableInitializer) {
                 if (node.target.toSource() == "\$receiver") {
-                    reciever = node.initializer
+                    receiver = node.initializer
                     return false
                 }
             }
@@ -143,7 +151,7 @@ class AtomicFUTransformerJS(
         field: AstNode,
         args: List<AstNode>,
         passScope: Boolean
-    ) {
+    ): Boolean {
         var code: String? = null
         val f = if (passScope) ("scope" + '.' + (field as PropertyGet).property.toSource()) else field.toSource()
         when (funcName) {
@@ -161,8 +169,16 @@ class AtomicFUTransformerJS(
                 code = "(function(scope) {return $f++;})"
             }
 
+            "getAndIncrement\$atomicfu\$long" -> {
+                code = "(function(scope) {var oldValue = $f; $f = $f.inc(); return oldValue;})"
+            }
+
             "getAndDecrement\$atomicfu" -> {
                 code = "(function(scope) {return $f--;})"
+            }
+
+            "getAndDecrement\$atomicfu\$long" -> {
+                code = "(function(scope) {var oldValue = $f; $f = $f.dec(); return oldValue;})"
             }
 
             "getAndAdd\$atomicfu" -> {
@@ -170,36 +186,117 @@ class AtomicFUTransformerJS(
                 code = "(function(scope) {var oldValue = $f; $f += $arg; return oldValue;})"
             }
 
+            "getAndAdd\$atomicfu\$long" -> {
+                val arg = args[0].toSource()
+                code = "(function(scope) {var oldValue = $f; $f = $f.add($arg); return oldValue;})"
+            }
+
             "addAndGet\$atomicfu" -> {
                 val arg = args[0].toSource()
                 code = "(function(scope) {$f += $arg; return $f;})"
+            }
+
+            "addAndGet\$atomicfu\$long" -> {
+                val arg = args[0].toSource()
+                code = "(function(scope) {$f = $f.add($arg); return $f;})"
             }
 
             "incrementAndGet\$atomicfu" -> {
                 code = "(function(scope) {return ++$f;})"
             }
 
+            "incrementAndGet\$atomicfu\$long" -> {
+                code = "(function(scope) {return $f = $f.inc();})"
+            }
+
             "decrementAndGet\$atomicfu" -> {
                 code = "(function(scope) {return --$f;})"
+            }
+
+            "decrementAndGet\$atomicfu\$long" -> {
+                code = "(function(scope) {return $f = $f.dec();})"
             }
         }
         if (code != null) {
             this.getNode(code)
+            return true
         }
+        return false
     }
 
     private fun FunctionCall.getNode(code: String) {
         val p = Parser(CompilerEnvirons())
         val node = p.parse(code, null, 0)
         if (node.firstChild != null) {
-            if (node.firstChild is ExpressionStatement) {
-                this.target = (node.firstChild as ExpressionStatement).expression
-                val thisNode = Parser(CompilerEnvirons()).parse("this", null, 0)
-                this.arguments = listOf((thisNode.firstChild as ExpressionStatement).expression)
-            }
+            val expr = (node.firstChild as ExpressionStatement).expression
+            val func = (expr as ParenthesizedExpression).expression as FunctionNode
+            (node.firstChild as ExpressionStatement).expression = ParenthesizedExpressionDerived(FunctionNodeDerived(func))
+            this.target = (node.firstChild as ExpressionStatement).expression
+            val thisNode = Parser(CompilerEnvirons()).parse("this", null, 0)
+            this.arguments = listOf((thisNode.firstChild as ExpressionStatement).expression)
         }
     }
 }
+
+private class ParenthesizedExpressionDerived(val expr: FunctionNode) : ParenthesizedExpression() {
+    override fun toSource(depth: Int): String = "(" + expr.toSource(0) + ")"
+}
+
+// local FunctionNode parser for atomic operations to avoid internal formatting
+private class FunctionNodeDerived(val fn: FunctionNode) : FunctionNode() {
+
+    override fun toSource(depth: Int): String {
+        val sb = StringBuilder()
+        sb.append("function")
+        sb.append("(")
+        printList(fn.params, sb)
+        sb.append(") ")
+
+        sb.append("{")
+        (fn.body as Block).forEach {
+            val sbStmt = StringBuilder()
+            when (it.type) {
+                Token.RETURN -> {
+                    val retVal = (it as ReturnStatement).returnValue
+                    when (retVal.type) {
+                        Token.HOOK -> {
+                            val cond = retVal as ConditionalExpression
+                            sbStmt.append("return ")
+                            sbStmt.append(cond.testExpression.toSource())
+                            sbStmt.append(" ? ")
+                            val target = (cond.trueExpression as FunctionCall).target as FunctionNode
+                            (cond.trueExpression as FunctionCall).target = FunctionNodeDerived(target)
+                            sbStmt.append(cond.trueExpression.toSource())
+                            sbStmt.append(" : ")
+                            sbStmt.append(cond.falseExpression.toSource())
+                        }
+                        else -> {
+                            sbStmt.append("return").append(" ").append(retVal.toSource()).append(";")
+                        }
+                    }
+                }
+                Token.VAR -> {
+                    if (it is VariableDeclaration) {
+                        sbStmt.append("var").append(" ")
+                        printList(it.variables, sbStmt)
+                        if (it.isStatement) {
+                            sbStmt.append(";")
+                        }
+                    }
+                }
+                Token.EXPR_VOID -> {
+                    if (it is ExpressionStatement) {
+                        sbStmt.append(it.expression.toSource()).append(";")
+                    }
+                }
+            }
+            sb.append(sbStmt.toString())
+        }
+        sb.append("}")
+        return sb.toString()
+    }
+}
+
 
 fun main(args: Array<String>) {
     if (args.size !in 1..2) {
@@ -208,6 +305,6 @@ fun main(args: Array<String>) {
     }
     val output = File(args[1])
     output.createNewFile()
-    val t = AtomicFUTransformerJS( File(args[0]), output)
+    val t = AtomicFUTransformerJS(File(args[0]), output)
     t.transform()
 }

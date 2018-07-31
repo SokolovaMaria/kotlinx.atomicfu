@@ -18,9 +18,16 @@
 
 package kotlinx.atomicfu
 
+@JsName("atomic\$ref\$")
 public actual fun <T> atomic(initial: T): AtomicRef<T> = AtomicRef<T>(initial)
+
+@JsName("atomic\$int\$")
 public actual fun atomic(initial: Int): AtomicInt = AtomicInt(initial)
+
+@JsName("atomic\$long\$")
 public actual fun atomic(initial: Long): AtomicLong = AtomicLong(initial)
+
+@JsName("atomic\$boolean\$")
 public actual fun atomic(initial: Boolean): AtomicBoolean = AtomicBoolean(initial)
 
 // ==================================== AtomicRef ====================================
@@ -149,30 +156,29 @@ public actual class AtomicLong internal constructor(value: Long) {
         return oldValue
     }
 
-    @JsName("getAndIncrement\$atomicfu")
+    @JsName("getAndIncrement\$atomicfu\$long")
     public actual fun getAndIncrement(): Long = value++
 
-    @JsName("getAndDecrement\$atomicfu")
+    @JsName("getAndDecrement\$atomicfu\$long")
     public actual fun getAndDecrement(): Long = value--
 
-    @JsName("getAndAdd\$atomicfu")
+    @JsName("getAndAdd\$atomicfu\$long")
     public actual fun getAndAdd(delta: Long): Long {
         val oldValue = value
         value += delta
         return oldValue
     }
 
-    @JsName("addAndGet\$atomicfu")
+    @JsName("addAndGet\$atomicfu\$long")
     public actual fun addAndGet(delta: Long): Long {
         value += delta
         return value
     }
 
-
-    @JsName("incrementAndGet\$atomicfu")
+    @JsName("incrementAndGet\$atomicfu\$long")
     public actual fun incrementAndGet(): Long = ++value
 
-    @JsName("decrementAndGet\$atomicfu")
+    @JsName("decrementAndGet\$atomicfu\$long")
     public actual fun decrementAndGet(): Long = --value
 
     public actual inline operator fun plusAssign(delta: Long) { getAndAdd(delta) }
