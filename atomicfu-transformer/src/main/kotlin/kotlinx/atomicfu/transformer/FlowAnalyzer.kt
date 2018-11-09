@@ -95,9 +95,12 @@ class FlowAnalyzer(
                     pop(1) // stored something else
                 }
                 NOP -> { /* nop */ }
-                GOTO, TABLESWITCH, LOOKUPSWITCH, ATHROW, IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE, IFNULL, IFNONNULL,
+                GOTO, TABLESWITCH, LOOKUPSWITCH, ATHROW, IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE, IFNULL,
                 IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ACMPEQ, IF_ACMPNE -> {
                     abort("Unsupported branching/control within atomic operation")
+                }
+                IFNONNULL -> {
+                    pop(1)
                 }
                 IRETURN, FRETURN, ARETURN, RETURN, LRETURN, DRETURN -> {
                     abort("Unsupported return within atomic operation")
